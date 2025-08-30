@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Event and Transaction Dashboard</title>
+</head>
+<body>
+    <h1>Events and Transactions</h1>
+    
+    <h2>Add Event</h2>
+    <form id="eventForm">
+        <input type="text" id="eventName" placeholder="Event Name" required><br><br>
+        <input type="number" id="budgetAllocated" placeholder="Budget Allocated" required><br><br>
+        <input type="number" id="amountSpent" placeholder="Amount Spent" required><br><br>
+        <input type="text" id="status" placeholder="Status (Planned/Ongoing/Completed)" required><br><br>
+        <button type="submit">Add Event</button>
+    </form>
+
+    <h2>Transactions</h2>
+    <form id="transactionForm">
+        <input type="text" id="transactionEvent" placeholder="Event Name" required><br><br>
+        <input type="number" id="transactionAmount" placeholder="Amount" required><br><br>
+        <input type="date" id="transactionDate" required><br><br>
+        <button type="submit">Add Transaction</button>
+    </form>
+
+    <script>
+        document.getElementById('eventForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const eventData = {
+                name: document.getElementById('eventName').value,
+                budget_allocated: document.getElementById('budgetAllocated').value,
+                amount_spent: document.getElementById('amountSpent').value,
+                status: document.getElementById('status').value
+            };
+
+            fetch('http://localhost:3000/events', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(eventData)
+            })
+            .then(response => response.json())
+            .then(data => alert('Event Added: ' + data.eventId))
+            .catch(error => console.error('Error:', error));
+        });
+
+        document.getElementById('transactionForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const transactionData = {
+                event_name: document.getElementById('transactionEvent').value,
+                amount: document.getElementById('transactionAmount').value,
+                date: document.getElementById('transactionDate').value
+            };
+
+            fetch('http://localhost:3000/transactions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(transactionData)
+            })
+            .then(response => response.json())
+            .then(data => alert('Transaction Added: ' + data.transactionId))
+            .catch(error => console.error('Error:', error));
+        });
+    </script>
+</body>
+</html>
