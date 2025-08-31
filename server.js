@@ -1,46 +1,49 @@
 const express = require('express');
 const app = express();
-const pool = require('./database');  // Make sure you have the correct path to the database file
+const pool = require('./database');  // Import MySQL database connection
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
-// Middleware to parse incoming JSON data and enable CORS
-app.use(express.json());
-app.use(cors());
+// Middleware
+app.use(express.json());  // To parse incoming JSON data
+app.use(cors());  // To allow cross-origin requests
 
-// JWT middleware to protect routes
+// JWT Middleware to check authentication
 const jwtMiddleware = (req, res, next) => {
-    const token = req.header('Authorization')?.split(' ')[1];  // Extract token from the header
+    const token = req.header('Authorization')?.split(' ')[1];  // "Bearer token"
 
     if (!token) {
         return res.status(401).json({ message: 'Unauthorized' });
     }
 
     try {
-        // Verify JWT token
-        const decoded = jwt.verify(token, 'your_jwt_secret');
-        req.user = decoded;  // Attach decoded user info to the request object
+        const decoded = jwt.verify(token, 'your_jwt_secret');  // Verify token
+        req.user = decoded;  // Attach user info to request object
         next();  // Proceed to the next route
     } catch (error) {
         return res.status(401).json({ message: 'Invalid token' });
     }
 };
 
+// Admin Role Middleware to restrict access
+const checkAdmin = (req, res, next) => {
+    if (req.user.role !== 'admin') {
+        return res.status(403).json({ message: 'Access denied' });
+    }
+    next();  // Proceed if the user is an admin
+};
+
 // POST route to register a new user
 app.post('/register', async (req, res) => {
     const { username, password, role } = req.body;
 
-    // Check if username already exists
     const [existingUser] = await pool.query('SELECT * FROM users WHERE username = ?', [username]);
     if (existingUser.length > 0) {
         return res.status(400).json({ message: 'User already exists' });
     }
 
-    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
-
-    // Insert the new user into the database
     const [result] = await pool.query(
         'INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)',
         [username, hashedPassword, role]
@@ -49,30 +52,26 @@ app.post('/register', async (req, res) => {
     res.status(201).json({ message: 'User registered successfully', userId: result.insertId });
 });
 
-// POST route to log in
+// POST route to log in (generate JWT token)
 app.post('/login', async (req, res) => {
     const { username, password } = req.body;
 
-    // Check if user exists
     const [user] = await pool.query('SELECT * FROM users WHERE username = ?', [username]);
     if (user.length === 0) {
         return res.status(400).json({ message: 'Invalid credentials' });
     }
 
-    // Compare password with hashed password
     const isMatch = await bcrypt.compare(password, user[0].password_hash);
     if (!isMatch) {
         return res.status(400).json({ message: 'Invalid credentials' });
     }
 
-    // Generate JWT token
     const token = jwt.sign({ userId: user[0].id, role: user[0].role }, 'your_jwt_secret', { expiresIn: '1h' });
-
     res.json({ message: 'Login successful', token });
 });
 
-// GET route to fetch events
-app.get('/events', async (req, res) => {
+// GET route to fetch all events (accessible to all users)
+app.get('/events', jwtMiddleware, async (req, res) => {
     try {
         const [rows] = await pool.query('SELECT * FROM events');
         res.json(rows);
@@ -82,12 +81,8 @@ app.get('/events', async (req, res) => {
     }
 });
 
-// POST route to add a new event (protected route)
-app.post('/events', jwtMiddleware, async (req, res) => {
-    if (req.user.role !== 'admin') {
-        return res.status(403).json({ message: 'Access denied' });  // Only admin can add events
-    }
-
+// POST route to add a new event (admin only)
+app.post('/events', jwtMiddleware, checkAdmin, async (req, res) => {
     const { name, budget_allocated, amount_spent, status } = req.body;
 
     try {
@@ -102,8 +97,8 @@ app.post('/events', jwtMiddleware, async (req, res) => {
     }
 });
 
-// GET route to fetch transactions
-app.get('/transactions', async (req, res) => {
+// GET route to fetch all transactions (accessible to all users)
+app.get('/transactions', jwtMiddleware, async (req, res) => {
     try {
         const [rows] = await pool.query('SELECT * FROM transactions');
         res.json(rows);
@@ -113,17 +108,9 @@ app.get('/transactions', async (req, res) => {
     }
 });
 
-// POST route to add a new transaction (protected route)
-app.post('/transactions', jwtMiddleware, async (req, res) => {
-    if (req.user.role !== 'admin') {
-        return res.status(403).json({ message: 'Access denied' });  // Only admin can add transactions
-    }
-
+// POST route to add a new transaction (admin only)
+app.post('/transactions', jwtMiddleware, checkAdmin, async (req, res) => {
     const { event_name, amount, date } = req.body;
-
-    if (!event_name || amount === undefined || !date) {
-        return res.status(400).json({ message: 'Missing required fields' });
-    }
 
     try {
         const [result] = await pool.query(
@@ -136,6 +123,11 @@ app.post('/transactions', jwtMiddleware, async (req, res) => {
         res.status(500).json({ message: 'Error adding transaction', error: error.message });
     }
 });
+// health check route
+app.get('/health', (req, res) => {
+    res.send('OK');
+});
+
 
 // Start the server
 const PORT = process.env.PORT || 3000;
