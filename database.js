@@ -1,12 +1,13 @@
-const mysql = require('mysql2');
+// database.js
+const mysql = require('mysql2/promise');
+require('dotenv').config();
 
-// Create a connection pool (for better performance with multiple queries)
 const pool = mysql.createPool({
-    host: 'localhost',         // MySQL server location (can be localhost for local dev)
-    user: 'root',              // Your MySQL username (usually 'root')
-    password: 'Moki@7890',              // Your MySQL password
-    database: 'treasurer_dashboard'  // The name of your database
+    host: process.env.MYSQLHOST,
+    user: process.env.MYSQLUSER,
+    password: process.env.MYSQLPASSWORD,
+    database: process.env.MYSQLDATABASE,
+    port: process.env.MYSQLPORT  // ✅ correct
 });
 
-// Export the pool so it can be used in other parts of your application
-module.exports = pool.promise();
+module.exports = pool;
